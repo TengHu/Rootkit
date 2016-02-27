@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "sneaky_mod.c"
 
 int main() {
   int rc = fork();  
@@ -22,3 +23,5 @@ int main() {
   }
   return 0;
 }
+
+
