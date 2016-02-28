@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <string.h>
 
-
 void copyfile(char * src, char * dst) {
   FILE * _src = fopen(src, "r");
   FILE * _dst = fopen(dst, "w");
@@ -13,8 +12,6 @@ void copyfile(char * src, char * dst) {
   fclose(_src);
   fclose(_dst);
 }
-
-
 
 int main() {
   char src1[] = "sneaky_process.c";

